@@ -83,12 +83,14 @@
 
         for (let ev of events) {
           eventList.innerHTML += `
-            <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
-            <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
-            <div id="details-${ev.id}">Loading details...</div>
-            <hr>
-          `;
-          loadEventDetails(ev.id);
+          <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
+          <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
+          <div id="details-${ev.id}">Loading details...</div>
+          <hr>
+        `;
+  loadEventDetails(ev); // Pass full event instead of just id
+}
+
         }
       } catch (err) {
         console.error("Error loading events:", err);
