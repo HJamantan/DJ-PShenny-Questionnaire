@@ -11,9 +11,11 @@
     const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    let currentClient = null; // store client record
 
     async function loadPortal() {
-      // Check session
+      // ✅ Check session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
@@ -31,21 +33,21 @@
       const user = session.user;
       document.getElementById("welcome").innerText = `Welcome, ${user.email}`;
 
-      //  Get client profile
+      // ✅ Get client profile
       let { data: client, error: clientError } = await supabase
         .from("clients")
         .select("*")
         .eq("auth_user_id", user.id)
         .single();
 
-      //  Auto-create client if not found
+      // ✅ Auto-create client if not found
       if (!client) {
         const { data: newClient, error: insertError } = await supabase
           .from("clients")
           .insert([
             {
               auth_user_id: user.id,
-              name: user.email,   // Default to email until they edit
+              name: user.email,
               email: user.email
             }
           ])
@@ -61,64 +63,83 @@
         client = newClient;
       }
 
-      //  Show client info
+      currentClient = client; // save for event creation
+
+      // ✅ Show client info
       document.getElementById("clientInfo").innerHTML = `
         <p><strong>Name:</strong> ${client.name || "Not set"}</p>
         <p><strong>Phone:</strong> ${client.phone || "Not set"}</p>
         <p><strong>Email:</strong> ${client.email || "Not set"}</p>
       `;
 
-      //  Load events
+      // Load events
+      loadEvents(client.id);
+    }
+
+    async function loadEvents(clientId) {
       let { data: events, error: eventError } = await supabase
         .from("events")
         .select("*")
-        .eq("client_id", client.id);
-
-      if (eventError) {
-        console.error(eventError);
-        document.getElementById("eventList").innerText = "Could not load events.";
-        return;
-      }
+        .eq("client_id", clientId);
 
       let eventList = document.getElementById("eventList");
       eventList.innerHTML = "";
 
+      if (eventError) {
+        console.error(eventError);
+        eventList.innerText = "Could not load events.";
+        return;
+      }
+
       if (events.length === 0) {
-        eventList.innerHTML = "<p>No events found. You can add one below.</p>";
+        eventList.innerHTML = "<p>No events found. Use the form below to add one.</p>";
+        return;
       }
 
       for (let ev of events) {
         eventList.innerHTML += `
           <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
           <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
+          <hr>
         `;
-
-        //  Load event details
-        let { data: details, error: detailError } = await supabase
-          .from("event_details")
-          .select("*")
-          .eq("event_id", ev.id);
-
-        if (detailError) {
-          console.error(detailError);
-          eventList.innerHTML += "<p>Error loading event details.</p>";
-          continue;
-        }
-
-        if (details && details.length > 0) {
-          let d = details[0];
-          eventList.innerHTML += `
-            <p><strong>Plan:</strong> ${d.plan || "Not provided"}</p>
-            <p><strong>Music:</strong> ${d.music || "Not provided"}</p>
-            <p><strong>Equipment:</strong> ${d.equipment || "Not provided"}</p>
-            <p><strong>Package:</strong> ${d.package || "Not selected"}</p>
-            <hr>
-          `;
-        }
       }
     }
 
-    window.onload = loadPortal;
+    async function addEvent(e) {
+      e.preventDefault();
+
+      if (!currentClient) {
+        alert("Client not loaded yet.");
+        return;
+      }
+
+      const newEvent = {
+        client_id: currentClient.id,
+        type: document.getElementById("eventType").value,
+        date: document.getElementById("eventDate").value,
+        time: document.getElementById("eventTime").value,
+        guest_count: parseInt(document.getElementById("guestCount").value) || null
+      };
+
+      let { data, error } = await supabase
+        .from("events")
+        .insert([newEvent])
+        .select();
+
+      if (error) {
+        console.error(error);
+        document.getElementById("eventStatus").innerText = "❌ Error adding event.";
+      } else {
+        document.getElementById("eventStatus").innerText = "✅ Event added!";
+        loadEvents(currentClient.id); // refresh list
+        document.getElementById("eventForm").reset();
+      }
+    }
+
+    window.onload = () => {
+      loadPortal();
+      document.getElementById("eventForm").onsubmit = addEvent;
+    };
   </script>
 </head>
 <body>
@@ -129,5 +150,29 @@
 
   <h2>Event Details</h2>
   <div id="eventList">Loading events...</div>
+
+  <h2>Add New Event</h2>
+  <form id="eventForm">
+    <label>Type:</label><br>
+    <select id="eventType" required>
+      <option value="Wedding">Wedding</option>
+      <option value="Birthday">Birthday</option>
+      <option value="Business">Business Event</option>
+      <option value="Other">Other</option>
+    </select><br><br>
+
+    <label>Date:</label><br>
+    <input type="date" id="eventDate" required><br><br>
+
+    <label>Time:</label><br>
+    <input type="time" id="eventTime" required><br><br>
+
+    <label>Guest Count:</label><br>
+    <input type="number" id="guestCount"><br><br>
+
+    <button type="submit">Add Event</button>
+  </form>
+
+  <p id="eventStatus"></p>
 </body>
 </html>
