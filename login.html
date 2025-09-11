@@ -9,8 +9,8 @@
 
   <script>
     // 1. Setup Supabase connection
-    const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
-    const SUPABASE_ANON_KEY = "YOUR_ANON_PUBLIC_KEY";
+    const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // 2. Login function
@@ -27,7 +27,7 @@
         alert("Login failed: " + error.message);
       } else {
         alert("Welcome! Redirecting to your portal...");
-        window.location.href = "portal.html"; // you'll make this page next
+        window.location.href = "portal.html"; 
       }
     }
   </script>
