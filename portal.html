@@ -208,8 +208,9 @@
         .select();
 
       if (error) {
-        console.error(error);
-        document.getElementById("eventStatus").innerText = "❌ Error adding event.";
+  console.error("Supabase insert error:", error);
+  document.getElementById("eventStatus").innerText = "❌ " + error.message;
+}
       } else {
         document.getElementById("eventStatus").innerText = "✅ Event added!";
         loadEvents(currentClient.id); // refresh list
