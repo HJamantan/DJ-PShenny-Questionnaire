@@ -12,182 +12,166 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    let currentClient = null; // store client record
+     let currentClient = null; // store client record
 
     async function loadPortal() {
-      //  Check session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      try {
+        // Check session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
 
-      if (sessionError) {
-        console.error(sessionError);
-        alert("Error checking session");
-        return;
-      }
-
-      if (!session) {
-        alert("You must log in first!");
-        window.location.href = "login.html";
-        return;
-      }
-
-      const user = session.user;
-      document.getElementById("welcome").innerText = `Welcome, ${user.email}`;
-
-      // ✅ Get client profile
-      let { data: client, error: clientError } = await supabase
-        .from("clients")
-        .select("*")
-        .eq("auth_user_id", user.id)
-        .single();
-
-      // ✅ Auto-create client if not found
-      if (!client) {
-        const { data: newClient, error: insertError } = await supabase
-          .from("clients")
-          .insert([
-            {
-              auth_user_id: user.id,
-              name: user.email,
-              email: user.email
-            }
-          ])
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error(insertError);
-          document.getElementById("clientInfo").innerText = "Error creating profile.";
+        if (!session) {
+          alert("You must log in first!");
+          window.location.href = "login.html";
           return;
         }
 
-        client = newClient;
+        const user = session.user;
+        document.getElementById("welcome").innerText = `Welcome, ${user.email}`;
+
+        // Get client profile
+        let { data: client } = await supabase
+          .from("clients")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        // Auto-create client if not found
+        if (!client) {
+          const { data: newClient, error: insertError } = await supabase
+            .from("clients")
+            .insert([{ auth_user_id: user.id, name: user.email, email: user.email }])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          client = newClient;
+        }
+
+        currentClient = client;
+
+        // Display client info
+        document.getElementById("clientInfo").innerHTML = `
+          <p><strong>Name:</strong> ${client.name || "Not set"}</p>
+          <p><strong>Phone:</strong> ${client.phone || "Not set"}</p>
+          <p><strong>Email:</strong> ${client.email || "Not set"}</p>
+        `;
+
+        // Load events
+        loadEvents(client.id);
+      } catch (err) {
+        console.error("Error loading portal:", err);
+        document.getElementById("welcome").innerText = "Error loading portal. Check console.";
       }
-
-      currentClient = client; // save for event creation
-
-      // ✅ Show client info
-      document.getElementById("clientInfo").innerHTML = `
-        <p><strong>Name:</strong> ${client.name || "Not set"}</p>
-        <p><strong>Phone:</strong> ${client.phone || "Not set"}</p>
-        <p><strong>Email:</strong> ${client.email || "Not set"}</p>
-      `;
-
-      // Load events
-      loadEvents(client.id);
     }
 
     async function loadEvents(clientId) {
-      let { data: events, error: eventError } = await supabase
-        .from("events")
-        .select("*")
-        .eq("client_id", clientId);
+      const eventList = document.getElementById("eventList");
+      try {
+        let { data: events, error: eventError } = await supabase
+          .from("events")
+          .select("*")
+          .eq("client_id", clientId);
 
-      let eventList = document.getElementById("eventList");
-      eventList.innerHTML = "";
+        if (eventError) throw eventError;
 
-      if (eventError) {
-        console.error(eventError);
-        eventList.innerText = "Could not load events.";
-        return;
-      }
+        eventList.innerHTML = "";
+        if (!events || events.length === 0) {
+          eventList.innerHTML = "<p>No events found. Use the form below to add one.</p>";
+          return;
+        }
 
-      if (events.length === 0) {
-        eventList.innerHTML = "<p>No events found. Use the form below to add one.</p>";
-        return;
-      }
-
-      for (let ev of events) {
-        eventList.innerHTML += `
-          <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
-          <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
-          <div id="details-${ev.id}">Loading details...</div>
-          <hr>
-        `;
-        loadEventDetails(ev.id);
+        for (let ev of events) {
+          eventList.innerHTML += `
+            <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
+            <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
+            <div id="details-${ev.id}">Loading details...</div>
+            <hr>
+          `;
+          loadEventDetails(ev.id);
+        }
+      } catch (err) {
+        console.error("Error loading events:", err);
+        eventList.innerText = "Error loading events.";
       }
     }
 
     async function loadEventDetails(eventId) {
-      let container = document.getElementById(`details-${eventId}`);
+      const container = document.getElementById(`details-${eventId}`);
+      try {
+        let { data: details, error: detailError } = await supabase
+          .from("event_details")
+          .select("*")
+          .eq("event_id", eventId)
+          .single();
 
-      let { data: details, error: detailError } = await supabase
-        .from("event_details")
-        .select("*")
-        .eq("event_id", eventId)
-        .single();
+        if (detailError && detailError.code !== "PGRST116") {
+          console.error(detailError);
+          container.innerText = "Error loading event details.";
+          return;
+        }
 
-      if (detailError && detailError.code !== "PGRST116") {
-        // ignore "No rows found"
-        console.error(detailError);
-        container.innerText = "Error loading event details.";
-        return;
-      }
+        const plan = details?.plan || "";
+        const music = details?.music || "";
+        const equipment = details?.equipment || "";
+        const pkg = details?.package || "Basic";
 
-      // Pre-fill if exists
-      let plan = details?.plan || "";
-      let music = details?.music || "";
-      let equipment = details?.equipment || "";
-      let pkg = details?.package || "Basic";
+        container.innerHTML = `
+          <form id="detailsForm-${eventId}">
+            <label>Plan:</label><br>
+            <textarea id="plan-${eventId}">${plan}</textarea><br><br>
 
-      container.innerHTML = `
-        <form id="detailsForm-${eventId}">
-          <label>Plan:</label><br>
-          <textarea id="plan-${eventId}">${plan}</textarea><br><br>
+            <label>Music:</label><br>
+            <input type="text" id="music-${eventId}" value="${music}"><br><br>
 
-          <label>Music:</label><br>
-          <input type="text" id="music-${eventId}" value="${music}"><br><br>
+            <label>Equipment:</label><br>
+            <input type="text" id="equipment-${eventId}" value="${equipment}"><br><br>
 
-          <label>Equipment:</label><br>
-          <input type="text" id="equipment-${eventId}" value="${equipment}"><br><br>
+            <label>Package:</label><br>
+            <select id="package-${eventId}">
+              <option value="Basic" ${pkg === "Basic" ? "selected" : ""}>Basic</option>
+              <option value="Standard" ${pkg === "Standard" ? "selected" : ""}>Standard</option>
+              <option value="Premium" ${pkg === "Premium" ? "selected" : ""}>Premium</option>
+            </select><br><br>
 
-          <label>Package:</label><br>
-          <select id="package-${eventId}">
-            <option value="Basic" ${pkg === "Basic" ? "selected" : ""}>Basic</option>
-            <option value="Standard" ${pkg === "Standard" ? "selected" : ""}>Standard</option>
-            <option value="Premium" ${pkg === "Premium" ? "selected" : ""}>Premium</option>
-          </select><br><br>
+            <button type="submit">Save Details</button>
+          </form>
+          <p id="saveStatus-${eventId}"></p>
+        `;
 
-          <button type="submit">Save Details</button>
-        </form>
-        <p id="saveStatus-${eventId}"></p>
-      `;
+        document.getElementById(`detailsForm-${eventId}`).onsubmit = async (e) => {
+          e.preventDefault();
+          const updated = {
+            plan: document.getElementById(`plan-${eventId}`).value,
+            music: document.getElementById(`music-${eventId}`).value,
+            equipment: document.getElementById(`equipment-${eventId}`).value,
+            package: document.getElementById(`package-${eventId}`).value,
+            event_id: eventId
+          };
 
-      document.getElementById(`detailsForm-${eventId}`).onsubmit = async (e) => {
-        e.preventDefault();
+          let result;
+          if (details) {
+            result = await supabase.from("event_details").update(updated).eq("event_id", eventId);
+          } else {
+            result = await supabase.from("event_details").insert([updated]);
+          }
 
-        const updated = {
-          plan: document.getElementById(`plan-${eventId}`).value,
-          music: document.getElementById(`music-${eventId}`).value,
-          equipment: document.getElementById(`equipment-${eventId}`).value,
-          package: document.getElementById(`package-${eventId}`).value,
-          event_id: eventId
+          if (result.error) {
+            console.error("Error saving details:", result.error);
+            document.getElementById(`saveStatus-${eventId}`).innerText = "❌ " + result.error.message;
+          } else {
+            document.getElementById(`saveStatus-${eventId}`).innerText = "✅ Details saved!";
+          }
         };
 
-        let result;
-        if (details) {
-          // Update existing
-          result = await supabase
-            .from("event_details")
-            .update(updated)
-            .eq("event_id", eventId);
-        } else {
-          // Insert new
-          result = await supabase
-            .from("event_details")
-            .insert([updated]);
-        }
-
-        if (result.error) {
-          console.error(result.error);
-          document.getElementById(`saveStatus-${eventId}`).innerText = "❌ Error saving details.";
-        } else {
-          document.getElementById(`saveStatus-${eventId}`).innerText = "✅ Details saved!";
-        }
-      };
+      } catch (err) {
+        console.error("Error in loadEventDetails:", err);
+        container.innerText = "Error loading details.";
+      }
     }
 
     async function addEvent(e) {
-      e.preventDefault();
+      e.preventDefault(); // stop form reload
 
       if (!currentClient) {
         alert("Client not loaded yet.");
@@ -202,18 +186,14 @@
         guest_count: parseInt(document.getElementById("guestCount").value) || null
       };
 
-      let { data, error } = await supabase
-        .from("events")
-        .insert([newEvent])
-        .select();
+      let { data, error } = await supabase.from("events").insert([newEvent]).select();
 
       if (error) {
-  console.error("Supabase insert error:", error);
-  document.getElementById("eventStatus").innerText = "❌ " + error.message;
-}
+        console.error("Supabase insert error:", error);
+        document.getElementById("eventStatus").innerText = "❌ " + error.message;
       } else {
         document.getElementById("eventStatus").innerText = "✅ Event added!";
-        loadEvents(currentClient.id); // refresh list
+        loadEvents(currentClient.id);
         document.getElementById("eventForm").reset();
       }
     }
