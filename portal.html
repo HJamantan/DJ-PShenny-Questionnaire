@@ -13,6 +13,7 @@
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     async function loadPortal() {
+      // Check session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
@@ -30,24 +31,44 @@
       const user = session.user;
       document.getElementById("welcome").innerText = `Welcome, ${user.email}`;
 
+      //  Get client profile
       let { data: client, error: clientError } = await supabase
         .from("clients")
         .select("*")
         .eq("auth_user_id", user.id)
         .single();
 
-      if (clientError || !client) {
-        console.error(clientError);
-        document.getElementById("clientInfo").innerText = "No client profile found.";
-        return;
+      //  Auto-create client if not found
+      if (!client) {
+        const { data: newClient, error: insertError } = await supabase
+          .from("clients")
+          .insert([
+            {
+              auth_user_id: user.id,
+              name: user.email,   // Default to email until they edit
+              email: user.email
+            }
+          ])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(insertError);
+          document.getElementById("clientInfo").innerText = "Error creating profile.";
+          return;
+        }
+
+        client = newClient;
       }
 
+      //  Show client info
       document.getElementById("clientInfo").innerHTML = `
         <p><strong>Name:</strong> ${client.name || "Not set"}</p>
         <p><strong>Phone:</strong> ${client.phone || "Not set"}</p>
         <p><strong>Email:</strong> ${client.email || "Not set"}</p>
       `;
 
+      //  Load events
       let { data: events, error: eventError } = await supabase
         .from("events")
         .select("*")
@@ -63,7 +84,7 @@
       eventList.innerHTML = "";
 
       if (events.length === 0) {
-        eventList.innerHTML = "<p>No events found.</p>";
+        eventList.innerHTML = "<p>No events found. You can add one below.</p>";
       }
 
       for (let ev of events) {
@@ -72,6 +93,7 @@
           <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
         `;
 
+        //  Load event details
         let { data: details, error: detailError } = await supabase
           .from("event_details")
           .select("*")
