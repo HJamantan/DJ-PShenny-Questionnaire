@@ -11,12 +11,11 @@
     const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-     let currentClient = null; // store client record
+    
+    let currentClient = null;
 
     async function loadPortal() {
       try {
-        // Check session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
 
@@ -36,29 +35,27 @@
           .eq("auth_user_id", user.id)
           .single();
 
-        // Auto-create client if not found
+        // Auto-create client if missing
         if (!client) {
           const { data: newClient, error: insertError } = await supabase
             .from("clients")
             .insert([{ auth_user_id: user.id, name: user.email, email: user.email }])
             .select()
             .single();
-
           if (insertError) throw insertError;
           client = newClient;
         }
 
         currentClient = client;
 
-        // Display client info
         document.getElementById("clientInfo").innerHTML = `
           <p><strong>Name:</strong> ${client.name || "Not set"}</p>
           <p><strong>Phone:</strong> ${client.phone || "Not set"}</p>
           <p><strong>Email:</strong> ${client.email || "Not set"}</p>
         `;
 
-        // Load events
         loadEvents(client.id);
+
       } catch (err) {
         console.error("Error loading portal:", err);
         document.getElementById("welcome").innerText = "Error loading portal. Check console.";
@@ -68,12 +65,12 @@
     async function loadEvents(clientId) {
       const eventList = document.getElementById("eventList");
       try {
-        let { data: events, error: eventError } = await supabase
+        let { data: events, error } = await supabase
           .from("events")
           .select("*")
           .eq("client_id", clientId);
 
-        if (eventError) throw eventError;
+        if (error) throw error;
 
         eventList.innerHTML = "";
         if (!events || events.length === 0) {
@@ -83,171 +80,163 @@
 
         for (let ev of events) {
           eventList.innerHTML += `
-          <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
-          <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
-          <div id="details-${ev.id}">Loading details...</div>
-          <hr>
-        `;
-  loadEventDetails(ev); // Pass full event instead of just id
-}
-
+            <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
+            <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
+            <div id="details-${ev.id}">Loading details...</div>
+            <hr>
+          `;
+          loadEventDetails(ev); // Pass full event
         }
+
       } catch (err) {
         console.error("Error loading events:", err);
         eventList.innerText = "Error loading events.";
       }
     }
 
-async function loadEventDetails(event) {
-  const eventId = event.id;
-  const container = document.getElementById(`details-${eventId}`);
+    async function loadEventDetails(event) {
+      const eventId = event.id;
+      const container = document.getElementById(`details-${eventId}`);
 
-  try {
-    let { data: details, error: detailError } = await supabase
-      .from("event_details")
-      .select("*")
-      .eq("event_id", eventId)
-      .single();
+      try {
+        let { data: details, error } = await supabase
+          .from("event_details")
+          .select("*")
+          .eq("event_id", eventId)
+          .single();
 
-    if (detailError && detailError.code !== "PGRST116") {
-      console.error(detailError);
-      container.innerText = "Error loading event details.";
-      return;
+        if (error && error.code !== "PGRST116") {
+          console.error(error);
+          container.innerText = "Error loading event details.";
+          return;
+        }
+
+        let fieldsHTML = "";
+
+        if (event.type === "Wedding") {
+          const plan = details?.plan || "";
+          const music = details?.music || "";
+          const equipment = details?.equipment || "";
+          const pkg = details?.package || "Basic";
+          fieldsHTML = `
+            <label>Plan:</label><br>
+            <textarea id="plan-${eventId}">${plan}</textarea><br><br>
+
+            <label>Music:</label><br>
+            <input type="text" id="music-${eventId}" value="${music}"><br><br>
+
+            <label>Equipment:</label><br>
+            <input type="text" id="equipment-${eventId}" value="${equipment}"><br><br>
+
+            <label>Package:</label><br>
+            <select id="package-${eventId}">
+              <option value="Basic" ${pkg==="Basic"?"selected":""}>Basic</option>
+              <option value="Standard" ${pkg==="Standard"?"selected":""}>Standard</option>
+              <option value="Premium" ${pkg==="Premium"?"selected":""}>Premium</option>
+            </select><br><br>
+          `;
+        } else if (event.type === "Birthday") {
+          const theme = details?.theme || "";
+          const age = details?.age_group || "";
+          const cake = details?.cake || "";
+          const entertainment = details?.entertainment || "";
+          fieldsHTML = `
+            <label>Theme:</label><br>
+            <input type="text" id="theme-${eventId}" value="${theme}"><br><br>
+
+            <label>Age Group:</label><br>
+            <input type="text" id="age-${eventId}" value="${age}"><br><br>
+
+            <label>Cake Type:</label><br>
+            <input type="text" id="cake-${eventId}" value="${cake}"><br><br>
+
+            <label>Entertainment:</label><br>
+            <input type="text" id="entertainment-${eventId}" value="${entertainment}"><br><br>
+          `;
+        } else if (event.type === "Business") {
+          const agenda = details?.agenda || "";
+          const av = details?.av_equipment || "";
+          const catering = details?.catering || "";
+          const pkg = details?.package || "Standard";
+          fieldsHTML = `
+            <label>Agenda:</label><br>
+            <textarea id="agenda-${eventId}">${agenda}</textarea><br><br>
+
+            <label>AV Equipment:</label><br>
+            <input type="text" id="av-${eventId}" value="${av}"><br><br>
+
+            <label>Catering:</label><br>
+            <input type="text" id="catering-${eventId}" value="${catering}"><br><br>
+
+            <label>Package:</label><br>
+            <select id="package-${eventId}">
+              <option value="Basic" ${pkg==="Basic"?"selected":""}>Basic</option>
+              <option value="Standard" ${pkg==="Standard"?"selected":""}>Standard</option>
+              <option value="Premium" ${pkg==="Premium"?"selected":""}>Premium</option>
+            </select><br><br>
+          `;
+        } else {
+          const notes = details?.notes || "";
+          fieldsHTML = `
+            <label>Notes / Requests:</label><br>
+            <textarea id="notes-${eventId}">${notes}</textarea><br><br>
+          `;
+        }
+
+        container.innerHTML = `
+          <form id="detailsForm-${eventId}">
+            ${fieldsHTML}
+            <button type="submit">Save Details</button>
+          </form>
+          <p id="saveStatus-${eventId}"></p>
+        `;
+
+        document.getElementById(`detailsForm-${eventId}`).onsubmit = async (e) => {
+          e.preventDefault();
+          let updated = { event_id: eventId };
+
+          if (event.type === "Wedding") {
+            updated.plan = document.getElementById(`plan-${eventId}`).value;
+            updated.music = document.getElementById(`music-${eventId}`).value;
+            updated.equipment = document.getElementById(`equipment-${eventId}`).value;
+            updated.package = document.getElementById(`package-${eventId}`).value;
+          } else if (event.type === "Birthday") {
+            updated.theme = document.getElementById(`theme-${eventId}`).value;
+            updated.age_group = document.getElementById(`age-${eventId}`).value;
+            updated.cake = document.getElementById(`cake-${eventId}`).value;
+            updated.entertainment = document.getElementById(`entertainment-${eventId}`).value;
+          } else if (event.type === "Business") {
+            updated.agenda = document.getElementById(`agenda-${eventId}`).value;
+            updated.av_equipment = document.getElementById(`av-${eventId}`).value;
+            updated.catering = document.getElementById(`catering-${eventId}`).value;
+            updated.package = document.getElementById(`package-${eventId}`).value;
+          } else {
+            updated.notes = document.getElementById(`notes-${eventId}`).value;
+          }
+
+          let result;
+          if (details) {
+            result = await supabase.from("event_details").update(updated).eq("event_id", eventId);
+          } else {
+            result = await supabase.from("event_details").insert([updated]);
+          }
+
+          if (result.error) {
+            console.error(result.error);
+            document.getElementById(`saveStatus-${eventId}`).innerText = "❌ " + result.error.message;
+          } else {
+            document.getElementById(`saveStatus-${eventId}`).innerText = "✅ Details saved!";
+          }
+        };
+
+      } catch (err) {
+        console.error("Error in loadEventDetails:", err);
+        container.innerText = "Error loading details.";
+      }
     }
-
-    let fieldsHTML = "";
-
-    if (event.type === "Wedding") {
-      const plan = details?.plan || "";
-      const music = details?.music || "";
-      const equipment = details?.equipment || "";
-      const pkg = details?.package || "Basic";
-
-      fieldsHTML = `
-        <label>Plan:</label><br>
-        <textarea id="plan-${eventId}">${plan}</textarea><br><br>
-
-        <label>Music:</label><br>
-        <input type="text" id="music-${eventId}" value="${music}"><br><br>
-
-        <label>Equipment:</label><br>
-        <input type="text" id="equipment-${eventId}" value="${equipment}"><br><br>
-
-        <label>Package:</label><br>
-        <select id="package-${eventId}">
-          <option value="Basic" ${pkg==="Basic"?"selected":""}>Basic</option>
-          <option value="Standard" ${pkg==="Standard"?"selected":""}>Standard</option>
-          <option value="Premium" ${pkg==="Premium"?"selected":""}>Premium</option>
-        </select><br><br>
-      `;
-    } else if (event.type === "Birthday") {
-      const theme = details?.theme || "";
-      const age = details?.age_group || "";
-      const cake = details?.cake || "";
-      const entertainment = details?.entertainment || "";
-
-      fieldsHTML = `
-        <label>Theme:</label><br>
-        <input type="text" id="theme-${eventId}" value="${theme}"><br><br>
-
-        <label>Age Group:</label><br>
-        <input type="text" id="age-${eventId}" value="${age}"><br><br>
-
-        <label>Cake Type:</label><br>
-        <input type="text" id="cake-${eventId}" value="${cake}"><br><br>
-
-        <label>Entertainment:</label><br>
-        <input type="text" id="entertainment-${eventId}" value="${entertainment}"><br><br>
-      `;
-    } else if (event.type === "Business") {
-      const agenda = details?.agenda || "";
-      const av = details?.av_equipment || "";
-      const catering = details?.catering || "";
-      const pkg = details?.package || "Standard";
-
-      fieldsHTML = `
-        <label>Agenda:</label><br>
-        <textarea id="agenda-${eventId}">${agenda}</textarea><br><br>
-
-        <label>AV Equipment:</label><br>
-        <input type="text" id="av-${eventId}" value="${av}"><br><br>
-
-        <label>Catering:</label><br>
-        <input type="text" id="catering-${eventId}" value="${catering}"><br><br>
-
-        <label>Package:</label><br>
-        <select id="package-${eventId}">
-          <option value="Basic" ${pkg==="Basic"?"selected":""}>Basic</option>
-          <option value="Standard" ${pkg==="Standard"?"selected":""}>Standard</option>
-          <option value="Premium" ${pkg==="Premium"?"selected":""}>Premium</option>
-        </select><br><br>
-      `;
-    } else {
-      const notes = details?.notes || "";
-      fieldsHTML = `
-        <label>Notes / Requests:</label><br>
-        <textarea id="notes-${eventId}">${notes}</textarea><br><br>
-      `;
-    }
-
-    container.innerHTML = `
-      <form id="detailsForm-${eventId}">
-        ${fieldsHTML}
-        <button type="submit">Save Details</button>
-      </form>
-      <p id="saveStatus-${eventId}"></p>
-    `;
-
-    // Hook up save
-    document.getElementById(`detailsForm-${eventId}`).onsubmit = async (e) => {
-      e.preventDefault();
-      let updated = { event_id: eventId };
-
-      if (event.type === "Wedding") {
-        updated.plan = document.getElementById(`plan-${eventId}`).value;
-        updated.music = document.getElementById(`music-${eventId}`).value;
-        updated.equipment = document.getElementById(`equipment-${eventId}`).value;
-        updated.package = document.getElementById(`package-${eventId}`).value;
-      } else if (event.type === "Birthday") {
-        updated.theme = document.getElementById(`theme-${eventId}`).value;
-        updated.age_group = document.getElementById(`age-${eventId}`).value;
-        updated.cake = document.getElementById(`cake-${eventId}`).value;
-        updated.entertainment = document.getElementById(`entertainment-${eventId}`).value;
-      } else if (event.type === "Business") {
-        updated.agenda = document.getElementById(`agenda-${eventId}`).value;
-        updated.av_equipment = document.getElementById(`av-${eventId}`).value;
-        updated.catering = document.getElementById(`catering-${eventId}`).value;
-        updated.package = document.getElementById(`package-${eventId}`).value;
-      } else {
-        updated.notes = document.getElementById(`notes-${eventId}`).value;
-      }
-
-      // Insert or update
-      let result;
-      if (details) {
-        result = await supabase.from("event_details").update(updated).eq("event_id", eventId);
-      } else {
-        result = await supabase.from("event_details").insert([updated]);
-      }
-
-      if (result.error) {
-        console.error(result.error);
-        document.getElementById(`saveStatus-${eventId}`).innerText = "❌ " + result.error.message;
-      } else {
-        document.getElementById(`saveStatus-${eventId}`).innerText = "✅ Details saved!";
-      }
-    };
-
-  } catch (err) {
-    console.error("Error in loadEventDetails:", err);
-    container.innerText = "Error loading details.";
-  }
-}
-
 
     async function addEvent(e) {
-      e.preventDefault(); // stop form reload
-
+      e.preventDefault();
       if (!currentClient) {
         alert("Client not loaded yet.");
         return;
@@ -262,7 +251,6 @@ async function loadEventDetails(event) {
       };
 
       let { data, error } = await supabase.from("events").insert([newEvent]).select();
-
       if (error) {
         console.error("Supabase insert error:", error);
         document.getElementById("eventStatus").innerText = "❌ " + error.message;
@@ -305,11 +293,4 @@ async function loadEventDetails(event) {
     <input type="time" id="eventTime" required><br><br>
 
     <label>Guest Count:</label><br>
-    <input type="number" id="guestCount"><br><br>
-
-    <button type="submit">Add Event</button>
-  </form>
-
-  <p id="eventStatus"></p>
-</body>
-</html>
+    <input type="number" id="guestCount"><br><
