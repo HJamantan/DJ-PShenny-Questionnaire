@@ -2,215 +2,244 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Client Portal</title>
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { margin-bottom: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background-color: #f4f4f4; }
+    tr:hover { background-color: #f1f1f1; cursor: pointer; }
+    #event-details, #new-event-section { margin-top: 20px; }
+    .dropdown { margin-top: 20px; }
+    .dropdown-btn {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .dropdown-content {
+      display: none;
+      margin-top: 10px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f9f9f9;
+    }
+    .show { display: block; }
+    input, textarea, button { margin-top: 5px; padding: 5px; width: 100%; }
+    button { width: auto; margin-right: 10px; }
+    .danger-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-  <h1>Client Portal</h1>
+  <h1 id="welcome">Welcome</h1>
+  
+  <h2>Your Events</h2>
+  <table id="eventsTable">
+    <thead>
+      <tr><th>Date</th><th>Time</th><th>Location</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-  <div id="eventList">Loading events...</div>
+  <div id="event-details">
+    <h2>Event Details</h2>
+    <div id="eventDetailsContent">Select an event to see details</div>
+  </div>
 
-  <h2>Add New Event</h2>
-  <form id="newEventForm">
-    <label>Date: <input type="date" id="eventDate" required></label><br>
-    <label>Time: <input type="time" id="eventTime" required></label><br>
-    <label>Event Type:
-      <select id="eventType" required>
-        <option value="wedding">Wedding</option>
-        <option value="business">Business Event</option>
-        <option value="birthday">Birthday</option>
-      </select>
-    </label><br>
-    <label>Guest Count: <input type="number" id="guestCount"></label><br>
-    <label>Contact Info: <input type="text" id="contactInfo"></label><br>
-
-    <div id="extraFields"></div>
-
-    <button type="submit">Add Event</button>
-  </form>
-
-  <p id="eventStatus"></p>
+  <div class="dropdown">
+    <button class="dropdown-btn" onclick="toggleDropdown()">+ Add New Event</button>
+    <div id="dropdownContent" class="dropdown-content">
+      <h2>New Event</h2>
+      <form id="newEventForm">
+        <label>Date: <input type="date" id="newDate" required></label><br>
+        <label>Time: <input type="time" id="newTime" required></label><br>
+        <label>Location: <input type="text" id="newLocation" required></label><br>
+        <label>Notes: <textarea id="newNotes"></textarea></label><br>
+        <button type="submit">Add Event</button>
+      </form>
+    </div>
+  </div>
 
   <script>
-    // === Connect to Supabase ===
     const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc"; // replace with your anon key
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // === Load events for logged-in user ===
-    async function loadEvents() {
-      const user = (await supabase.auth.getUser()).data.user;
+    let currentUser = null;
+    let activeEventId = null;
+
+    // Toggle dropdown
+    function toggleDropdown() {
+      document.getElementById("dropdownContent").classList.toggle("show");
+    }
+
+    // Load client profile + events
+    async function loadClientData() {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        alert("Please log in first.");
         window.location.href = "index.html";
         return;
       }
+      currentUser = user;
 
+      // Load profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("id", user.id)
+        .single();
+
+      const welcome = document.getElementById("welcome");
+      if (profile && profile.name) {
+        welcome.innerText = "Welcome, " + profile.name;
+      } else {
+        welcome.innerText = "Welcome, " + user.email;
+      }
+
+      loadEvents();
+    }
+
+    // Load events list
+    async function loadEvents() {
       const { data: events, error } = await supabase
         .from("events")
         .select("*")
-        .eq("user_id", user.id);
+        .eq("user_id", currentUser.id);
 
-      const eventList = document.getElementById("eventList");
       if (error) {
         console.error("Error loading events:", error);
-        eventList.innerText = "Error loading events.";
         return;
       }
 
-      if (!events || events.length === 0) {
-        eventList.innerText = "No events found. Add one below!";
-        return;
-      }
+      const tbody = document.querySelector("#eventsTable tbody");
+      tbody.innerHTML = "";
 
-      eventList.innerHTML = "";
-      for (let ev of events) {
-        eventList.innerHTML += `
-          <h3>${ev.type} — ${ev.date} @ ${ev.time}</h3>
-          <p><strong>Guests:</strong> ${ev.guest_count || "Not set"}</p>
-          <p><strong>Contact:</strong> ${ev.contact_info || "Not set"}</p>
-          <div id="details-${ev.id}">Loading details...</div>
-          <hr>
+      events.forEach(event => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${event.date || ""}</td>
+          <td>${event.time || ""}</td>
+          <td>${event.location || ""}</td>
         `;
-        loadEventDetails(ev);
-      }
-    }
-
-    // === Load details for a single event with edit fields ===
-    async function loadEventDetails(event) {
-      const eventId = event.id;
-      const container = document.getElementById(`details-${eventId}`);
-      if (!container) return;
-
-      const { data: details, error } = await supabase
-        .from("event_details")
-        .select("*")
-        .eq("event_id", eventId)
-        .single();
-
-      if (error && error.code !== "PGRST116") { // ignore "no rows found"
-        console.error("Error in loadEventDetails:", error);
-        container.innerText = "Error loading details.";
-        return;
-      }
-
-      // Pre-fill values (if exist)
-      const music = details?.music || "";
-      const equipment = details?.equipment || "";
-      const pkg = details?.package || "";
-
-      // Editable form
-      container.innerHTML = `
-        <form id="editForm-${eventId}">
-          <label>Music: <input type="text" id="music-${eventId}" value="${music}"></label><br>
-          <label>Equipment: <input type="text" id="equipment-${eventId}" value="${equipment}"></label><br>
-          <label>Package: <input type="text" id="package-${eventId}" value="${pkg}"></label><br>
-          <button type="submit">Save Changes</button>
-        </form>
-        <p id="status-${eventId}"></p>
-      `;
-
-      // Add form handler
-      document.getElementById(`editForm-${eventId}`).addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const updatedDetails = {
-          event_id: eventId,
-          music: document.getElementById(`music-${eventId}`).value,
-          equipment: document.getElementById(`equipment-${eventId}`).value,
-          package: document.getElementById(`package-${eventId}`).value,
-        };
-
-        // Upsert (insert if missing, update if exists)
-        const { error: upsertError } = await supabase
-          .from("event_details")
-          .upsert(updatedDetails, { onConflict: "event_id" });
-
-        const status = document.getElementById(`status-${eventId}`);
-        if (upsertError) {
-          console.error("Error updating details:", upsertError);
-          status.innerText = "Error saving changes.";
-        } else {
-          status.innerText = "Changes saved!";
-        }
+        row.addEventListener("click", () => loadEventDetails(event.id));
+        tbody.appendChild(row);
       });
     }
 
-    // === Handle event form submission ===
+    // Load event details
+    async function loadEventDetails(eventId) {
+      activeEventId = eventId;
+      const content = document.getElementById("eventDetailsContent");
+      content.innerHTML = "Loading details...";
+
+      if (!eventId) {
+        content.innerHTML = "No event selected.";
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("events")
+          .select("*")
+          .eq("id", eventId)
+          .single();
+
+        if (error) throw error;
+
+        content.innerHTML = `
+          <p><strong>Date:</strong> <input id="event-date" type="date" value="${data.date || ""}"></p>
+          <p><strong>Time:</strong> <input id="event-time" type="time" value="${data.time || ""}"></p>
+          <p><strong>Location:</strong> <input id="event-location" type="text" value="${data.location || ""}"></p>
+          <p><strong>Notes:</strong> <textarea id="event-notes">${data.notes || ""}</textarea></p>
+          <button id="saveEventBtn">Save Changes</button>
+          <button class="danger-btn" id="deleteEventBtn">Delete Event</button>
+        `;
+
+        // Save changes
+        document.getElementById("saveEventBtn").onclick = async () => {
+          const updates = {
+            date: document.getElementById("event-date").value,
+            time: document.getElementById("event-time").value,
+            location: document.getElementById("event-location").value,
+            notes: document.getElementById("event-notes").value
+          };
+
+          const { error: updateError } = await supabase
+            .from("events")
+            .update(updates)
+            .eq("id", eventId);
+
+          if (updateError) {
+            alert("Error saving event: " + updateError.message);
+          } else {
+            alert("Event updated!");
+            loadEvents(); // refresh event list
+          }
+        };
+
+        // Delete event
+        document.getElementById("deleteEventBtn").onclick = async () => {
+          if (!confirm("Are you sure you want to delete this event?")) return;
+
+          const { error: deleteError } = await supabase
+            .from("events")
+            .delete()
+            .eq("id", eventId);
+
+          if (deleteError) {
+            alert("Error deleting event: " + deleteError.message);
+          } else {
+            alert("Event deleted!");
+            content.innerHTML = "Select an event to see details";
+            loadEvents();
+          }
+        };
+
+      } catch (err) {
+        console.error("Error in loadEventDetails:", err.message);
+        content.innerHTML = "Error loading details.";
+      }
+    }
+
+    // Add new event
     document.getElementById("newEventForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) {
-        alert("Not logged in!");
-        return;
-      }
 
-      // Step 1: insert into events table
       const newEvent = {
-        user_id: user.id,
-        date: document.getElementById("eventDate").value,
-        time: document.getElementById("eventTime").value,
-        type: document.getElementById("eventType").value,
-        guest_count: document.getElementById("guestCount").value,
-        contact_info: document.getElementById("contactInfo").value,
+        user_id: currentUser.id,
+        date: document.getElementById("newDate").value,
+        time: document.getElementById("newTime").value,
+        location: document.getElementById("newLocation").value,
+        notes: document.getElementById("newNotes").value
       };
 
-      const { data: eventData, error: eventError } = await supabase
-        .from("events")
-        .insert([newEvent])
-        .select()
-        .single();
+      const { error } = await supabase.from("events").insert([newEvent]);
 
-      const status = document.getElementById("eventStatus");
-      if (eventError) {
-        console.error("Error adding event:", eventError);
-        status.innerText = "Error adding event.";
-        return;
+      if (error) {
+        alert("Error adding event: " + error.message);
+      } else {
+        alert("Event added!");
+        document.getElementById("newEventForm").reset();
+        toggleDropdown(); // close dropdown after submit
+        loadEvents();
       }
-
-      // Step 2: insert empty details row
-      const { error: detailsError } = await supabase
-        .from("event_details")
-        .insert([{ event_id: eventData.id }]);
-
-      if (detailsError) {
-        console.error("Error creating details row:", detailsError);
-        status.innerText = "Event created, but details missing.";
-        return;
-      }
-
-      status.innerText = "Event and details created!";
-      loadEvents();
     });
 
-    // === Change form fields depending on event type ===
-    document.getElementById("eventType").addEventListener("change", (e) => {
-      const extraFields = document.getElementById("extraFields");
-      const type = e.target.value;
-      let html = "";
-
-      if (type === "wedding") {
-        html = `
-          <label>Wedding Song: <input type="text" id="weddingSong"></label><br>
-          <label>Package: <input type="text" id="weddingPackage"></label><br>
-        `;
-      } else if (type === "business") {
-        html = `
-          <label>Equipment Needed: <input type="text" id="businessEquipment"></label><br>
-          <label>Agenda: <input type="text" id="businessAgenda"></label><br>
-        `;
-      } else if (type === "birthday") {
-        html = `
-          <label>Theme: <input type="text" id="birthdayTheme"></label><br>
-          <label>Entertainment: <input type="text" id="birthdayEntertainment"></label><br>
-        `;
-      }
-
-      extraFields.innerHTML = html;
-    });
-
-    // === Run on page load ===
-    loadEvents();
+    // Start
+    loadClientData();
   </script>
 </body>
 </html>
