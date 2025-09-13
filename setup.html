@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Client Signup</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>Create Your Account</h1>
+
+  <form id="signupForm">
+    <label>Full Name: <input type="text" id="full_name" required></label><br>
+    <label>Email: <input type="email" id="email" required></label><br>
+    <label>Password: <input type="password" id="password" required></label><br>
+    <button type="submit">Sign Up</button>
+  </form>
+
+  <p id="status"></p>
+
+  <script>
+    // Supabase setup
+    const supabaseUrl = "https://aodilhcpmsvbcbnphgwm.supabase.co"; 
+    const supabaseKey = "YOUR_SUPABASE_ANON_KEY"; // replace this with your anon key
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    const statusEl = document.getElementById("status");
+
+    document.getElementById("signupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const full_name = document.getElementById("full_name").value;
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      try {
+        // 1. Create the auth user
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password
+        });
+
+        if (error) throw error;
+
+        const user = data.user;
+        if (!user) throw new Error("User not created.");
+
+        // 2. Insert full_name into profiles table
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert([{ id: user.id, full_name }]);
+
+        if (profileError) throw profileError;
+
+        statusEl.innerText = "Account created! You can now log in at your login page.";
+      } catch (err) {
+        console.error("Signup error:", err.message);
+        statusEl.innerText = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
