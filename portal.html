@@ -37,22 +37,24 @@
     </div>
   </div>
 
-  <!-- Load Supabase first -->
+  <!-- Load Supabase library first -->
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
 
   <script>
-    // Initialize Supabase
+    // --- Initialize Supabase first ---
     const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentUser = null;
 
+    // Toggle "Add New Event" form
     function toggleNewEventForm() {
       const form = document.getElementById("new-event-form");
       form.style.display = form.style.display === "none" ? "block" : "none";
     }
 
+    // Load events for the current user
     async function loadEvents() {
       const eventsList = document.getElementById("events-list");
       eventsList.innerHTML = "Loading events...";
@@ -91,6 +93,7 @@
       });
     }
 
+    // Add a new event
     async function addEvent() {
       const event_date = document.getElementById("event_date").value;
       const event_type = document.getElementById("event_type").value;
@@ -112,6 +115,7 @@
       loadEvents();
     }
 
+    // Update an existing event
     async function updateEvent(eventId) {
       const event_date = document.getElementById(`date-${eventId}`).value;
       const event_type = document.getElementById(`type-${eventId}`).value;
@@ -133,6 +137,7 @@
       loadEvents();
     }
 
+    // Delete an event
     async function deleteEvent(eventId) {
       if (!confirm("Are you sure you want to delete this event?")) return;
 
@@ -151,6 +156,7 @@
       loadEvents();
     }
 
+    // Initialize portal
     async function initPortal() {
       console.log("Initializing portal...");
 
@@ -181,12 +187,14 @@
 
       loadEvents();
 
+      // Add event form submission
       document.getElementById("event-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         await addEvent();
       });
     }
 
+    // Wait until DOM is loaded
     document.addEventListener("DOMContentLoaded", initPortal);
   </script>
 </body>
