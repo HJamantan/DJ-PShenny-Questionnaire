@@ -37,7 +37,9 @@
     </div>
   </div>
 
+  <!-- Load Supabase library first -->
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
+
   <script>
     // --- Initialize Supabase ---
     const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
@@ -51,46 +53,15 @@
       form.style.display = form.style.display === "none" ? "block" : "none";
     }
 
-    document.addEventListener("DOMContentLoaded", async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) {
-        window.location.href = "login.html";
-        return;
-      }
-      currentUser = data.user;
-      const { data, error } = await supabase.auth.getUser();
-      console.log("Logged-in user data:", data);
-
-      // Fetch the profile name
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", currentUser.id)
-        .single();
-
-      let displayName = currentUser.email;
-      if (!profileError && profileData && profileData.name) {
-        displayName = profileData.name;
-      }
-
-      document.getElementById("welcome").innerText = `Welcome, ${displayName}`;
-
-      loadEvents();
-
-      document.getElementById("event-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        await addEvent();
-      });
-    });
-
     async function loadEvents() {
+      const eventsList = document.getElementById("events-list");
+      eventsList.innerHTML = "Loading events...";
+
       const { data, error } = await supabase
         .from("events")
         .select("*")
         .eq("user_id", currentUser.id)
         .order("event_date", { ascending: true });
-
-      const eventsList = document.getElementById("events-list");
 
       if (error) {
         console.error("Error loading events:", error);
@@ -178,6 +149,38 @@
 
       loadEvents();
     }
+
+    async function initPortal() {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) {
+        window.location.href = "login.html";
+        return;
+      }
+      currentUser = data.user;
+
+      // Fetch profile name
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("id", currentUser.id)
+        .single();
+
+      let displayName = currentUser.email;
+      if (!profileError && profileData && profileData.name) {
+        displayName = profileData.name;
+      }
+
+      document.getElementById("welcome").innerText = `Welcome, ${displayName}`;
+
+      loadEvents();
+
+      document.getElementById("event-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await addEvent();
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", initPortal);
   </script>
 </body>
 </html>
