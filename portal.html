@@ -58,6 +58,8 @@
         return;
       }
       currentUser = data.user;
+      const { data, error } = await supabase.auth.getUser();
+      console.log("Logged-in user data:", data);
 
       // Fetch the profile name
       const { data: profileData, error: profileError } = await supabase
