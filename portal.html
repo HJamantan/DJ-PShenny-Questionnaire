@@ -21,6 +21,16 @@
     .loading {
       color: gray;
     }
+    .event {
+      margin-bottom: 15px;
+      padding: 10px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+    }
+    .event input, .event textarea {
+      width: 100%;
+      margin: 4px 0;
+    }
   </style>
 </head>
 <body>
@@ -56,41 +66,37 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Toggle dropdown for new event
+    let currentUser = null;
+
     function toggleNewEventForm() {
       const form = document.getElementById("new-event-form");
       form.style.display = form.style.display === "none" ? "block" : "none";
     }
 
-    // Load events on page load
     document.addEventListener("DOMContentLoaded", async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
-
       if (error || !user) {
-        window.location.href = "login.html"; // redirect if not logged in
+        window.location.href = "login.html";
         return;
       }
-
+      currentUser = user;
       document.getElementById("welcome").innerText = `Welcome, ${user.email}`;
-
-      loadEvents(user.id);
+      loadEvents();
 
       document.getElementById("event-form").addEventListener("submit", async (e) => {
         e.preventDefault();
-        await addEvent(user.id);
+        await addEvent();
       });
     });
 
-    // Load user's events
-    async function loadEvents(userId) {
+    async function loadEvents() {
       const { data, error } = await supabase
         .from("events")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", currentUser.id)
         .order("event_date", { ascending: true });
 
       const eventsList = document.getElementById("events-list");
-
       if (error) {
         console.error("Error loading events:", error);
         eventsList.innerText = "Error loading events.";
@@ -105,28 +111,28 @@
       eventsList.innerHTML = "";
       data.forEach(evt => {
         const div = document.createElement("div");
+        div.className = "event";
         div.innerHTML = `
-          <strong>${evt.event_type}</strong> <br>
-          Date: ${evt.event_date} <br>
-          Guests: ${evt.guest_count || "N/A"} <br>
-          Notes: ${evt.notes || ""} <br>
+          <label>Date & Time: <input type="datetime-local" id="date-${evt.id}" value="${evt.event_date ? evt.event_date.replace('Z','') : ''}"></label><br>
+          <label>Type: <input type="text" id="type-${evt.id}" value="${evt.event_type || ''}"></label><br>
+          <label>Guest Count: <input type="number" id="guest-${evt.id}" value="${evt.guest_count || ''}"></label><br>
+          <label>Notes: <textarea id="notes-${evt.id}">${evt.notes || ''}</textarea></label><br>
+          <button onclick="updateEvent(${evt.id})">Save Changes</button>
           <button onclick="deleteEvent(${evt.id})">Delete</button>
-          <hr>
         `;
         eventsList.appendChild(div);
       });
     }
 
-    // Add new event
-    async function addEvent(userId) {
+    async function addEvent() {
       const event_date = document.getElementById("event_date").value;
       const event_type = document.getElementById("event_type").value;
       const guest_count = document.getElementById("guest_count").value;
       const notes = document.getElementById("notes").value;
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("events")
-        .insert([{ user_id: userId, event_date, event_type, guest_count, notes }]);
+        .insert([{ user_id: currentUser.id, event_date, event_type, guest_count, notes }]);
 
       if (error) {
         alert("Error adding event: " + error.message);
@@ -136,24 +142,42 @@
 
       document.getElementById("event-form").reset();
       toggleNewEventForm();
-      loadEvents(userId);
+      loadEvents();
     }
 
-    // Delete event
+    async function updateEvent(eventId) {
+      const event_date = document.getElementById(`date-${eventId}`).value;
+      const event_type = document.getElementById(`type-${eventId}`).value;
+      const guest_count = document.getElementById(`guest-${eventId}`).value;
+      const notes = document.getElementById(`notes-${eventId}`).value;
+
+      const { error } = await supabase
+        .from("events")
+        .update({ event_date, event_type, guest_count, notes })
+        .eq("id", eventId)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        alert("Error updating event: " + error.message);
+        console.error(error);
+        return;
+      }
+      loadEvents();
+    }
+
     async function deleteEvent(eventId) {
       const { error } = await supabase
         .from("events")
         .delete()
-        .eq("id", eventId);
+        .eq("id", eventId)
+        .eq("user_id", currentUser.id);
 
       if (error) {
         alert("Error deleting event: " + error.message);
         console.error(error);
         return;
       }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      loadEvents(user.id);
+      loadEvents();
     }
   </script>
 </body>
