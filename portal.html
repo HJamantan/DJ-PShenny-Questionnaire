@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Client Portal</title>
-  <style>
-    body { font-family: 'Segoe UI', sans-serif; background:#f9f9f9; margin:0; padding:20px; }
-    header { background:#4a90e2; color:white; padding:20px; border-radius:10px; text-align:center; margin-bottom:20px; }
-    h1 { margin:0; }
-    .section { background:white; padding:20px; border-radius:10px; box-shadow:0 4px 8px rgba(0,0,0,0.05); margin-bottom:20px; }
-    .event { border:1px solid #ddd; border-radius:8px; padding:15px; margin-bottom:15px; background:#fefefe; }
-    input, textarea, select { width:100%; padding:6px; margin:4px 0 10px 0; border:1px solid #ccc; border-radius:5px; font-size:14px; }
-    button { background:#4a90e2; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:14px; }
-    button:hover { background:#357ABD; }
-    .small-btn { padding:5px 10px; font-size:13px; }
-    #new-event-form { margin-top:15px; display:none; }
-    label { font-weight:bold; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Portal</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background:#f9f9f9; margin:0; padding:20px; }
+  header { background:#4a90e2; color:white; padding:20px; border-radius:10px; text-align:center; margin-bottom:20px; }
+  h1 { margin:0; }
+  .section { background:white; padding:20px; border-radius:10px; box-shadow:0 4px 8px rgba(0,0,0,0.05); margin-bottom:20px; }
+  .event { border:1px solid #ddd; border-radius:8px; padding:15px; margin-bottom:15px; background:#fefefe; }
+  input, textarea, select { width:100%; padding:6px; margin:4px 0 10px 0; border:1px solid #ccc; border-radius:5px; font-size:14px; }
+  button { background:#4a90e2; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:14px; }
+  button:hover { background:#357ABD; }
+  .small-btn { padding:5px 10px; font-size:13px; margin-right:5px; }
+  #new-event-form { margin-top:15px; display:none; }
+  label { font-weight:bold; }
+</style>
 </head>
 <body>
 
@@ -61,46 +61,48 @@
     const SUPABASE_URL = "https://aodilhcpmsvbcbnphgwm.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZGlsaGNwbXN2YmNibnBoZ3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1Mzg0MjQsImV4cCI6MjA3MzExNDQyNH0.z3pNo4APUtcXTrCfWfsNigs4MLQ0CIipjk48VT4micc";
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   let currentUser = null;
 
   async function initPortal() {
-    const { data: sessionData } = await supabase.auth.getUser();
-    if(!sessionData?.user){ window.location.href="login.html"; return; }
-    currentUser = sessionData.user;
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) { window.location.href="login.html"; return; }
+    currentUser = user;
 
-    // Auto-create client row
+    // Ensure client exists in clients table
     const { data: clientRow } = await supabase
       .from("clients")
       .select("*")
       .eq("auth_user_id", currentUser.id)
       .single();
-    if(!clientRow) {
+    if (!clientRow) {
       await supabase.from("clients").insert({ auth_user_id: currentUser.id });
     }
 
-    // Auto-create profile
-    const { data: profileData } = await supabase
+    // Ensure profile exists
+    const { data: profileRow } = await supabase
       .from("profiles")
       .select("*")
       .eq("client_id", currentUser.id)
       .single();
-    if(!profileData) {
+    if (!profileRow) {
       await supabase.from("profiles").insert({ client_id: currentUser.id, name: "" });
     }
 
-    // Welcome user by name
+    // Load profile for greeting
     const { data: profile } = await supabase
       .from("profiles")
       .select("name")
       .eq("client_id", currentUser.id)
       .single();
-    document.getElementById("welcome").innerText = `Welcome, ${profile?.name || currentUser.email}`;
+    document.getElementById("welcome").innerText =
+      `Welcome, ${profile?.name || currentUser.email}`;
 
     // Load events
     loadEvents();
 
-    // Form submit
-    document.getElementById("event-form").addEventListener("submit", async (e)=>{
+    // Handle new event form submission
+    document.getElementById("event-form").addEventListener("submit", async e=>{
       e.preventDefault();
       await addEvent();
     });
@@ -113,14 +115,14 @@
       .select("*")
       .eq("client_id", currentUser.id)
       .order("event_date",{ascending:true});
-    if(error){ console.error(error); eventsList.innerText="Error loading events."; return; }
-    if(!data || data.length===0){ eventsList.innerText="No events yet."; return; }
+    if (error) { console.error(error); eventsList.innerText="Error loading events."; return; }
+    if (!data || data.length===0) { eventsList.innerText="No events yet."; return; }
 
-    eventsList.innerHTML="";
-    data.forEach(evt=>{
-      const div=document.createElement("div");
-      div.className="event";
-      div.innerHTML=`
+    eventsList.innerHTML = "";
+    data.forEach(evt => {
+      const div = document.createElement("div");
+      div.className = "event";
+      div.innerHTML = `
         <label>Date & Time:</label>
         <input type="datetime-local" id="date-${evt.id}" value="${evt.event_date?evt.event_date.replace('Z',''):''}"><br>
         <label>Type:</label>
@@ -144,51 +146,51 @@
   function showEventDetailsFields() {
     const type = document.getElementById("event_type").value;
     const container = document.getElementById("dynamic-fields");
-    container.innerHTML="";
-    if(!type) return;
+    container.innerHTML = "";
+    if (!type) return;
 
     let fields = [];
-    if(type==="wedding") fields=[{label:"Music",id:"music",type:"textarea"},{label:"Equipment",id:"equipment",type:"textarea"}];
-    else if(type==="birthday") fields=[{label:"Cake Details",id:"cake",type:"textarea"}];
-    else if(type==="business") fields=[{label:"Topics",id:"topics",type:"textarea"},{label:"Equipment",id:"equipment",type:"textarea"}];
+    if (type==="wedding") fields=[{label:"Music",id:"music",type:"textarea"},{label:"Equipment",id:"equipment",type:"textarea"}];
+    else if (type==="birthday") fields=[{label:"Cake Details",id:"cake",type:"textarea"}];
+    else if (type==="business") fields=[{label:"Topics",id:"topics",type:"textarea"},{label:"Equipment",id:"equipment",type:"textarea"}];
 
-    fields.forEach(f=>{
-      const label=document.createElement("label");
-      label.textContent=f.label+":";
+    fields.forEach(f => {
+      const label = document.createElement("label");
+      label.textContent = f.label+":";
       container.appendChild(label);
-      const input=f.type==="textarea"?document.createElement("textarea"):document.createElement("input");
-      input.id=f.id;
+      const input = f.type==="textarea"?document.createElement("textarea"):document.createElement("input");
+      input.id = f.id;
       container.appendChild(input);
       container.appendChild(document.createElement("br"));
     });
   }
 
   async function addEvent() {
-    const event_date=document.getElementById("event_date").value;
-    const event_type=document.getElementById("event_type").value;
-    const guest_count=document.getElementById("guest_count").value;
-    const notes=document.getElementById("notes").value;
+    const event_date = document.getElementById("event_date").value;
+    const event_type = document.getElementById("event_type").value;
+    const guest_count = document.getElementById("guest_count").value;
+    const notes = document.getElementById("notes").value;
 
     const { data: newEvent, error } = await supabase
       .from("events")
       .insert([{ client_id: currentUser.id, event_date, event_type, guest_count, notes }]);
-    if(error){ alert("Error adding event"); console.error(error); return; }
+    if (error) { alert("Error adding event"); console.error(error); return; }
     loadEvents();
     toggleNewEventForm();
     document.getElementById("event-form").reset();
   }
 
   async function updateEvent(id) {
-    const event_date=document.getElementById(`date-${id}`).value;
-    const event_type=document.getElementById(`type-${id}`).value;
-    const guest_count=document.getElementById(`guest-${id}`).value;
-    const notes=document.getElementById(`notes-${id}`).value;
+    const event_date = document.getElementById(`date-${id}`).value;
+    const event_type = document.getElementById(`type-${id}`).value;
+    const guest_count = document.getElementById(`guest-${id}`).value;
+    const notes = document.getElementById(`notes-${id}`).value;
 
     const { error } = await supabase
       .from("events")
       .update({ event_date, event_type, guest_count, notes })
       .eq("id", id);
-    if(error){ alert("Error updating event"); console.error(error); return; }
+    if (error) { alert("Error updating event"); console.error(error); return; }
     loadEvents();
   }
 
@@ -197,7 +199,7 @@
       .from("events")
       .delete()
       .eq("id", id);
-    if(error){ alert("Error deleting event"); console.error(error); return; }
+    if (error) { alert("Error deleting event"); console.error(error); return; }
     loadEvents();
   }
 
